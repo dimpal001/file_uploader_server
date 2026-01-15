@@ -1,34 +1,51 @@
-const multer = require('multer')
-const path = require('path')
-const fs = require('fs')
-const { v4: uuidv4 } = require('uuid')
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+const { v4: uuidv4 } = require("uuid");
 
-const baseUploadDir = process.env.UPLOAD_DIR || 'uploads'
+const baseUploadDir = path.resolve(process.env.UPLOAD_DIR || "uploads");
+
+const ALLOWED_FOLDERS = [
+  "temp",
+  "school-manager",
+  "students",
+  "teachers",
+  "profiles",
+  "documents",
+];
+
+const getSafeFolder = (folder) => {
+  if (!folder) return "temp";
+  return ALLOWED_FOLDERS.includes(folder) ? folder : "temp";
+};
 
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const folder = req.body.folder || req.query.folder || 'temp'
-    const targetDir = path.join(baseUploadDir, folder)
+  destination(req, file, cb) {
+    const folder = getSafeFolder(req.body.folder);
+    req.uploadFolder = folder;
 
-    fs.mkdirSync(targetDir, { recursive: true })
+    const targetDir = path.join(baseUploadDir, folder);
 
-    req.uploadFolder = folder
+    if (!targetDir.startsWith(baseUploadDir)) {
+      return cb(new Error("Invalid upload path"));
+    }
 
-    cb(null, targetDir)
+    fs.mkdirSync(targetDir, { recursive: true });
+    cb(null, targetDir);
   },
 
-  filename: function (req, file, cb) {
-    const uniqueName = uuidv4() + path.extname(file.originalname)
-    req.uploadedFileName = uniqueName
-    cb(null, uniqueName)
+  filename(req, file, cb) {
+    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
+    req.uploadedFileName = uniqueName;
+    cb(null, uniqueName);
   },
-})
+});
 
 const upload = multer({
   storage,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE || '5242880'),
+    fileSize: Number(process.env.MAX_FILE_SIZE || 5242880),
   },
-})
+});
 
-module.exports = upload
+module.exports = upload;
